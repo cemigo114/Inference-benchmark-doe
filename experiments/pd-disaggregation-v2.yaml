@@ -1,0 +1,90 @@
+# Improved YAML format for prefill/decode disaggregation experiment
+# Demonstrates continuous parameters and advanced constraints
+
+metadata:
+  name: "Prefill-Decode Disaggregation Study"
+  description: "Compare standalone vs disaggregated deployment strategies"
+  version: "2.0"
+
+cluster:
+  total_gpus: 64
+  gpu_memory_gb: 80
+  gpu_type: "H100"
+
+model:
+  name: "meta-llama/Llama-3.1-70B-Instruct"
+
+setup:
+  parameters:
+    # Categorical: deployment method
+    - name: LLMDBENCH_DEPLOY_METHODS
+      type: categorical
+      values: [standalone, modelservice]
+      description: "Deployment method"
+
+    # Ordinal: replica counts
+    - name: LLMDBENCH_VLLM_COMMON_REPLICAS
+      type: ordinal
+      values: [1, 2, 4]
+      description: "Replicas for standalone deployment"
+
+    - name: LLMDBENCH_VLLM_COMMON_TENSOR_PARALLELISM
+      type: ordinal
+      values: [2, 4, 8]
+      description: "Tensor parallelism for standalone"
+
+    # Modelservice-specific parameters
+    - name: LLMDBENCH_VLLM_MODELSERVICE_PREFILL_REPLICAS
+      type: ordinal
+      values: [2, 4, 6, 8]
+      description: "Number of prefill pods"
+
+    - name: LLMDBENCH_VLLM_MODELSERVICE_PREFILL_TENSOR_PARALLELISM
+      type: ordinal
+      values: [1, 2, 4]
+      description: "TP for each prefill pod"
+
+    - name: LLMDBENCH_VLLM_MODELSERVICE_DECODE_REPLICAS
+      type: ordinal
+      values: [1, 2, 4]
+      description: "Number of decode pods"
+
+    - name: LLMDBENCH_VLLM_MODELSERVICE_DECODE_TENSOR_PARALLELISM
+      type: ordinal
+      values: [2, 4, 8]
+      description: "TP for each decode pod"
+
+run:
+  parameters:
+    - name: max-concurrency
+      type: ordinal
+      values: [1, 8, 32, 64, 128, 256]
+      description: "Maximum concurrent requests"
+      unit: "requests"
+
+    - name: num-prompts
+      type: ordinal
+      values: [10, 80, 320, 640, 1280, 2560]
+      description: "Total number of prompts"
+      unit: "prompts"
+
+generation:
+  # Use LHS to reduce from ~500+ full factorial to manageable set
+  strategy: lhs
+  n_samples: 50
+
+constraints:
+  # GPU constraints
+  expressions:
+    # Standalone: replicas * TP <= total GPUs
+    - "LLMDBENCH_DEPLOY_METHODS != 'standalone' or (LLMDBENCH_VLLM_COMMON_REPLICAS * LLMDBENCH_VLLM_COMMON_TENSOR_PARALLELISM <= 64)"
+
+    # Modelservice: total GPUs <= available
+    - "LLMDBENCH_DEPLOY_METHODS != 'modelservice' or ((LLMDBENCH_VLLM_MODELSERVICE_PREFILL_REPLICAS * LLMDBENCH_VLLM_MODELSERVICE_PREFILL_TENSOR_PARALLELISM) + (LLMDBENCH_VLLM_MODELSERVICE_DECODE_REPLICAS * LLMDBENCH_VLLM_MODELSERVICE_DECODE_TENSOR_PARALLELISM) <= 64)"
+
+    # Run constraints: num-prompts should be multiple of concurrency
+    - "num_prompts >= max_concurrency"
+
+validation:
+  capacity_planner: true
+  strict: true  # Reject infeasible treatments
