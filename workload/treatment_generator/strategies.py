@@ -303,11 +303,26 @@ class LatinHypercubeSamplingStrategy(GenerationStrategy):
             )
 
         # Generate LHS for numerical parameters
-        sampler = qmc.LatinHypercube(
-            d=len(numerical_params),
-            seed=seed,
-            optimization=criterion
-        )
+        sampler_kwargs = {
+            'd': len(numerical_params),
+            'seed': seed,
+        }
+
+        if criterion is not None:
+            sampler_kwargs['optimization'] = criterion
+
+        try:
+            sampler = qmc.LatinHypercube(**sampler_kwargs)
+        except ValueError:
+            fallback_map = {
+                'maximin': 'random-cd',
+                'ratio': 'random-cd',
+                'correlation': 'lloyd',
+            }
+            fallback_key = criterion.lower() if isinstance(criterion, str) else None
+            sampler_kwargs['optimization'] = fallback_map.get(fallback_key)
+            sampler = qmc.LatinHypercube(**sampler_kwargs)
+
         lhs_samples = sampler.random(n=n_samples)
 
         # Scale to parameter bounds
