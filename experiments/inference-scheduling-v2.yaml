@@ -1,0 +1,64 @@
+# Improved YAML format for inference scheduling experiment
+# Demonstrates new parameter specification format with type inference
+
+# Optional: Experiment metadata
+metadata:
+  name: "Inference Scheduling Comparison"
+  description: "Compare different GAIE scheduling policies with varying workload characteristics"
+  version: "2.0"
+  author: "llm-d team"
+
+# Optional: Cluster configuration for validation
+cluster:
+  total_gpus: 8
+  gpu_memory_gb: 80
+  gpu_type: "H100"
+
+# Optional: Model configuration
+model:
+  name: "meta-llama/Llama-3.1-8B-Instruct"
+
+# Setup (infrastructure) parameters
+setup:
+  # New format: explicit parameter definitions with types
+  parameters:
+    - name: LLMDBENCH_VLLM_MODELSERVICE_GAIE_PLUGINS_CONFIGFILE
+      type: categorical
+      values:
+        - inf-sche-none.yaml
+        - inf-sche-prefix.yaml
+        - inf-sche-kv.yaml
+        - inf-sche-queue.yaml
+      description: "GAIE scheduling policy configuration"
+
+# Run (workload) parameters
+run:
+  parameters:
+    - name: question_len
+      type: ordinal
+      values: [100, 300, 1000]
+      description: "Input prompt length in tokens"
+      unit: "tokens"
+
+    - name: output_len
+      type: ordinal
+      values: [100, 300, 1000]
+      description: "Expected output length in tokens"
+      unit: "tokens"
+
+# Optional: Generation strategy
+generation:
+  # Use LHS instead of full factorial
+  strategy: lhs
+  n_samples: 12  # Instead of 36 full factorial combinations
+
+# Optional: Constraints
+constraints:
+  # Mathematical constraints (Python expressions)
+  expressions:
+    - "question_len + output_len <= 2000"  # Total length constraint
+
+# Optional: Validation settings
+validation:
+  capacity_planner: true
+  strict: false  # Allow treatments that can't be validated
