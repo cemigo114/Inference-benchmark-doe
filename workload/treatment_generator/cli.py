@@ -5,7 +5,7 @@ Command-line interface for treatment generator.
 Usage:
     python -m treatment_generator.cli generate experiment.yaml --strategy lhs --n-samples 20
     python -m treatment_generator.cli validate experiment.yaml
-    python -m treatment_generator.cli compare experiment.yaml --strategies lhs,sobol,random
+    python -m treatment_generator.cli compare experiment.yaml --strategies lhs,random,grid
 """
 
 import argparse
@@ -199,7 +199,7 @@ def main():
     parser_gen.add_argument('--output', '-o', default='generated_treatments.yaml',
                            help='Output file (default: generated_treatments.yaml)')
     parser_gen.add_argument('--strategy', '-s', default='lhs',
-                           choices=['lhs', 'sobol', 'random', 'grid', 'full_factorial'],
+                           choices=['lhs', 'random', 'full_factorial', 'grid'],
                            help='Sampling strategy (default: lhs)')
     parser_gen.add_argument('--n-samples', '-n', type=int, default=20,
                            help='Number of samples (default: 20)')
@@ -222,8 +222,8 @@ def main():
     # Compare command
     parser_cmp = subparsers.add_parser('compare', help='Compare sampling strategies')
     parser_cmp.add_argument('input', help='Input experiment YAML file')
-    parser_cmp.add_argument('--strategies', default='lhs,sobol,random',
-                           help='Comma-separated strategies (default: lhs,sobol,random)')
+    parser_cmp.add_argument('--strategies', default='lhs,random,grid',
+                           help='Comma-separated strategies (default: lhs,random,grid)')
     parser_cmp.add_argument('--n-samples', '-n', type=int, default=20,
                            help='Number of samples per strategy (default: 20)')
     parser_cmp.add_argument('--validate', action='store_true',
