@@ -20,8 +20,8 @@ from scipy.stats import qmc
 from itertools import combinations, product
 import logging
 
-from parameter_space import ParameterSpace, Parameter, ParameterType
-from treatment import Treatment
+from .parameter_space import ParameterSpace, Parameter, ParameterType
+from .treatment import Treatment
 
 logger = logging.getLogger(__name__)
 

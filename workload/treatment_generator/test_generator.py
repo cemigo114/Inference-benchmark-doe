@@ -2,24 +2,36 @@
 Unit tests for treatment generator module.
 """
 
-import pytest
-import numpy as np
+import sys
 from pathlib import Path
 
-from parameter_space import ParameterSpace, Parameter, ParameterType
-from treatment import Treatment
-from strategies import (
+import pytest
+import numpy as np
+
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+from workload.treatment_generator.parameter_space import (
+    ParameterSpace,
+    Parameter,
+    ParameterType,
+)
+from workload.treatment_generator.treatment import Treatment
+from workload.treatment_generator.strategies import (
     FullFactorialStrategy,
     RandomSamplingStrategy,
     LatinHypercubeSamplingStrategy,
     SobolSequenceStrategy,
 )
-from validators import (
+from workload.treatment_generator.validators import (
     ConstraintValidator,
     TotalGPUValidator,
     NAValueValidator,
 )
-from generator import TreatmentGenerator
+from workload.treatment_generator.generator import TreatmentGenerator
 
 
 class TestParameter:
@@ -152,6 +164,28 @@ class TestParameterSpace:
         decoded = space.decode_vector(encoded)
         assert decoded["cat_param"] == "b"
         assert abs(decoded["ord_param"] - 5) < 1  # Within rounding
+
+    def test_from_yaml_dict_parses_numeric_levels(self):
+        yaml_dict = {
+            "setup": {
+                "factors": ["replicas"],
+                "levels": {"replicas": "1,2,4"},
+            },
+            "run": {
+                "factors": ["learning_rate"],
+                "levels": {"learning_rate": "0.1,0.2,0.5"},
+            },
+        }
+
+        space = ParameterSpace.from_yaml_dict(yaml_dict)
+
+        replicas = space.setup_params["replicas"]
+        assert replicas.type == ParameterType.ORDINAL
+        assert replicas.values == [1, 2, 4]
+
+        lr = space.run_params["learning_rate"]
+        assert lr.type == ParameterType.CONTINUOUS
+        assert lr.values == [0.1, 0.2, 0.5]
 
 
 class TestTreatment:

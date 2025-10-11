@@ -8,6 +8,24 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 
 
+def _parse_level_value(value: Any) -> Any:
+    """Best-effort conversion of legacy level values to numbers."""
+    if not isinstance(value, str):
+        return value
+
+    stripped = value.strip()
+    if stripped == "":
+        return stripped
+
+    try:
+        return int(stripped)
+    except ValueError:
+        try:
+            return float(stripped)
+        except ValueError:
+            return stripped
+
+
 class ParameterType(Enum):
     """Parameter types for different sampling strategies."""
     CATEGORICAL = "categorical"  # Discrete, unordered (e.g., "none", "prefix", "kv")
@@ -297,13 +315,11 @@ class ParameterSpace:
             if 'factors' in setup and 'levels' in setup:
                 for factor in setup['factors']:
                     level_str = setup['levels'].get(factor, '')
-                    values = [v.strip() for v in level_str.split(',')]
-
-                    # Try to convert to numbers
-                    try:
-                        values = [int(v) if v.isdigit() else v for v in values]
-                    except:
-                        pass
+                    values = [
+                        _parse_level_value(v)
+                        for v in level_str.split(',')
+                        if v.strip() != ''
+                    ]
 
                     param = Parameter.infer_from_values(factor, values)
                     space.add_parameter(param, phase='setup')
@@ -322,12 +338,11 @@ class ParameterSpace:
             if 'factors' in run and 'levels' in run:
                 for factor in run['factors']:
                     level_str = run['levels'].get(factor, '')
-                    values = [v.strip() for v in level_str.split(',')]
-
-                    try:
-                        values = [int(v) if v.isdigit() else v for v in values]
-                    except:
-                        pass
+                    values = [
+                        _parse_level_value(v)
+                        for v in level_str.split(',')
+                        if v.strip() != ''
+                    ]
 
                     param = Parameter.infer_from_values(factor, values)
                     space.add_parameter(param, phase='run')
