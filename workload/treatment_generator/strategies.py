@@ -1,12 +1,11 @@
 """
 Treatment generation strategies.
 
-Implements various sampling strategies for generating treatments:
-- Latin Hypercube Sampling (LHS)
-- Sobol sequences
-- Random sampling
-- Factorial designs
-- Grid search
+Implements core sampling strategies for generating treatments:
+- Latin Hypercube Sampling (LHS) - Recommended for space-filling
+- Random sampling - Simple baseline
+- Factorial design - Complete enumeration
+- Grid search - Uniform grid
 """
 
 from abc import ABC, abstractmethod
@@ -81,8 +80,8 @@ class FullFactorialStrategy(GenerationStrategy):
         if len(combinations) > max_treatments:
             raise ValueError(
                 f"Full factorial would produce {len(combinations)} treatments "
-                f"(max={max_treatments}). Consider using fractional factorial "
-                f"or a sampling strategy."
+                f"(max={max_treatments}). Consider using a sampling strategy "
+                f"or reduce parameter levels."
             )
 
         # Create treatments
@@ -96,47 +95,6 @@ class FullFactorialStrategy(GenerationStrategy):
             treatments.append(treatment)
 
         return treatments
-
-
-class FractionalFactorialStrategy(GenerationStrategy):
-    """
-    Fractional factorial design - subset of full factorial.
-
-    Useful for screening experiments to identify important parameters.
-    """
-
-    def generate(
-        self,
-        param_space: ParameterSpace,
-        n_samples: Optional[int] = None,
-        fraction: float = 0.5,
-        **kwargs
-    ) -> List[Treatment]:
-        """
-        Generate fractional factorial design.
-
-        Args:
-            fraction: Fraction of full factorial to sample (0.0 to 1.0)
-        """
-        # Generate full factorial first
-        full_factorial = FullFactorialStrategy().generate(
-            param_space,
-            max_treatments=100000
-        )
-
-        # Sample fraction
-        n_to_sample = max(1, int(len(full_factorial) * fraction))
-        if n_samples:
-            n_to_sample = min(n_to_sample, n_samples)
-
-        sampled = random.sample(full_factorial, n_to_sample)
-
-        # Update metadata
-        for treatment in sampled:
-            treatment.metadata['strategy'] = 'fractional_factorial'
-            treatment.metadata['fraction'] = fraction
-
-        return sampled
 
 
 class GridSearchStrategy(GenerationStrategy):
@@ -353,100 +311,12 @@ class LatinHypercubeSamplingStrategy(GenerationStrategy):
         return treatments
 
 
-class SobolSequenceStrategy(GenerationStrategy):
-    """
-    Sobol sequence sampling - low-discrepancy quasi-random sequence.
-
-    Better space-filling properties than random sampling.
-    Good for deterministic, reproducible experiments.
-    """
-
-    def generate(
-        self,
-        param_space: ParameterSpace,
-        n_samples: int = 20,
-        seed: Optional[int] = None,
-        scramble: bool = True,
-        **kwargs
-    ) -> List[Treatment]:
-        """
-        Generate Sobol sequence design.
-
-        Args:
-            n_samples: Number of samples
-            seed: Random seed (for scrambling)
-            scramble: Whether to scramble the sequence (recommended)
-        """
-        # Separate categorical and numerical parameters
-        categorical_params = [p for p in param_space.all_params.values()
-                            if p.type == ParameterType.CATEGORICAL]
-        numerical_params = [p for p in param_space.all_params.values()
-                          if p.type in [ParameterType.ORDINAL, ParameterType.CONTINUOUS]]
-
-        if not numerical_params:
-            return RandomSamplingStrategy().generate(
-                param_space, n_samples, seed
-            )
-
-        # Generate Sobol sequence
-        sampler = qmc.Sobol(
-            d=len(numerical_params),
-            scramble=scramble,
-            seed=seed
-        )
-        sobol_samples = sampler.random(n=n_samples)
-
-        # Scale to parameter bounds
-        lower_bounds = [p.min_value for p in numerical_params]
-        upper_bounds = [p.max_value for p in numerical_params]
-        scaled_samples = qmc.scale(sobol_samples, lower_bounds, upper_bounds)
-
-        # Create treatments
-        treatments = []
-        for i, sample in enumerate(scaled_samples):
-            params = {}
-
-            # Add numerical parameters
-            for j, param in enumerate(numerical_params):
-                value = sample[j]
-
-                if param.type == ParameterType.ORDINAL:
-                    if param.values:
-                        value = min(param.values, key=lambda x: abs(x - value))
-                    else:
-                        value = int(round(value))
-
-                params[param.name] = value
-
-            # Add categorical parameters
-            if seed is not None:
-                random.seed(seed + i)
-
-            for param in categorical_params:
-                params[param.name] = random.choice(param.values)
-
-            treatment = Treatment(
-                params=params,
-                metadata={
-                    'strategy': 'sobol',
-                    'seed': seed,
-                    'scramble': scramble,
-                    'index': i
-                }
-            )
-            treatments.append(treatment)
-
-        return treatments
-
-
 # Registry of available strategies
 STRATEGY_REGISTRY = {
-    'full_factorial': FullFactorialStrategy,
-    'fractional_factorial': FractionalFactorialStrategy,
-    'grid': GridSearchStrategy,
-    'random': RandomSamplingStrategy,
     'lhs': LatinHypercubeSamplingStrategy,
-    'sobol': SobolSequenceStrategy,
+    'random': RandomSamplingStrategy,
+    'full_factorial': FullFactorialStrategy,
+    'grid': GridSearchStrategy,
 }
 
 
